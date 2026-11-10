@@ -7,6 +7,7 @@
 #include "zmk/keymap.h"
 #include "zmk/matrix.h"
 #include "zmk/studio/core.h"
+#include "drivers/behavior.h"
 #include "drivers/keymap_shell.h"
 
 #define DT_DRV_COMPAT zmk_keymap_shell
@@ -749,6 +750,87 @@ static int cmd_activate(const struct shell *sh, const size_t argc, char **argv) 
     return 0;
 }
 
+static bool studio_locked(const struct shell *sh) {
+    if (zmk_studio_core_get_lock_state() != ZMK_STUDIO_CORE_LOCK_STATE_LOCKED) {
+        return false;
+    }
+
+    shprint(sh, "Unlock ZMK Studio first.");
+    return true;
+}
+
+static bool parse_number(const struct shell *sh, const char *str, const unsigned long max,
+                         unsigned long *value) {
+    char *endptr;
+    *value = strtoul(str, &endptr, 10);
+    if (endptr != str && *endptr == '\0' && *value <= max) {
+        return true;
+    }
+
+    shprint(sh, "Invalid argument!");
+    return false;
+}
+
+static int cmd_get(const struct shell *sh, const size_t argc, char **argv) {
+    if (studio_locked(sh)) {
+        return -EACCES;
+    }
+
+    unsigned long layer;
+    if (!parse_number(sh, argv[1], UINT8_MAX, &layer)) {
+        return -EINVAL;
+    }
+
+    for (int i = 0; i < ZMK_KEYMAP_LEN; i++) {
+        const struct zmk_behavior_binding *binding = zmk_keymap_get_layer_binding_at_idx(layer, i);
+        if (binding == NULL) {
+            continue;
+        }
+
+        shprint(sh, "%d %d %u %u %s", i, zmk_behavior_get_local_id(binding->behavior_dev),
+                binding->param1, binding->param2,
+                binding->behavior_dev != NULL ? binding->behavior_dev : "");
+    }
+
+    return 0;
+}
+
+static int cmd_set(const struct shell *sh, const size_t argc, char **argv) {
+    if (studio_locked(sh)) {
+        return -EACCES;
+    }
+
+    unsigned long layer, position, behavior, param1, param2;
+    if (!parse_number(sh, argv[1], UINT8_MAX, &layer) ||
+        !parse_number(sh, argv[2], UINT8_MAX, &position) ||
+        !parse_number(sh, argv[3], UINT16_MAX, &behavior) ||
+        !parse_number(sh, argv[4], UINT32_MAX, &param1) ||
+        !parse_number(sh, argv[5], UINT32_MAX, &param2)) {
+        return -EINVAL;
+    }
+
+    const struct zmk_behavior_binding binding = {
+        .behavior_dev = zmk_behavior_find_behavior_name_from_local_id(behavior),
+        .param1 = param1,
+        .param2 = param2,
+    };
+
+    int err = binding.behavior_dev != NULL ? zmk_behavior_validate_binding(&binding) : -ENODEV;
+    if (err >= 0) {
+        err = zmk_keymap_set_layer_binding_at_idx(layer, position, binding);
+    }
+    if (err >= 0) {
+        err = zmk_keymap_save_changes();
+    }
+    if (err < 0) {
+        shprint(sh, "Failed to set binding! Error code = %d", err);
+        return err;
+    }
+
+    shprint(sh, "Set.");
+    return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_keymap,
     SHELL_CMD(init, NULL, "Initialize interactive slots subsystem.", cmd_init),
     SHELL_CMD(status, NULL, "Print status of all slots.", cmd_status),
@@ -758,6 +840,9 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_keymap,
     SHELL_CMD(destroy, NULL, "Delete the slot and its data.", cmd_destroy),
     SHELL_CMD(restore, NULL, "Restore the factory default keymap.", cmd_restore),
     SHELL_CMD(free, NULL, "Free all allocated memory and uninitialize.", cmd_free),
+    SHELL_CMD_ARG(get, NULL, "Print bindings: [layer]", cmd_get, 2, 0),
+    SHELL_CMD_ARG(set, NULL, "Set a binding: [layer] [position] [behavior] [param1] [param2]",
+                  cmd_set, 6, 0),
     SHELL_COND_CMD(CONFIG_ZMK_KEYMAP_OUTPUT_ASSIGN, assign, NULL,
                    "Bind an output to a keymap slot.", keymap_assign_cmd),
     SHELL_SUBCMD_SET_END
