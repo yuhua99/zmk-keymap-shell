@@ -4,6 +4,7 @@
 #include <zephyr/shell/shell.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/settings/settings.h>
+#include "zmk/hid.h"
 #include "zmk/keymap.h"
 #include "zmk/matrix.h"
 #include "zmk/studio/core.h"
@@ -831,6 +832,44 @@ static int cmd_set(const struct shell *sh, const size_t argc, char **argv) {
     return 0;
 }
 
+static void print_values(const struct shell *sh, const int set, const int param,
+                         const struct behavior_parameter_value_metadata *values, const size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        const bool hid = values[i].type == BEHAVIOR_PARAMETER_VALUE_TYPE_HID_USAGE;
+        shprint(sh, "%d %d %d %d %d %s", set, param, values[i].type,
+                hid ? ZMK_HID_KEYBOARD_MAX_USAGE : values[i].range.min,
+                hid ? ZMK_HID_CONSUMER_MAX_USAGE : values[i].range.max,
+                values[i].display_name != NULL ? values[i].display_name : "");
+    }
+}
+
+static int cmd_behavior(const struct shell *sh, const size_t argc, char **argv) {
+    if (studio_locked(sh)) {
+        return -EACCES;
+    }
+
+    unsigned long index;
+    size_t count;
+    STRUCT_SECTION_COUNT(zmk_behavior_ref, &count);
+    if (!parse_number(sh, argv[1], UINT16_MAX, &index) || index >= count) {
+        return -EINVAL;
+    }
+
+    struct zmk_behavior_ref *ref;
+    STRUCT_SECTION_GET(zmk_behavior_ref, index, &ref);
+    shprint(sh, "%d %s", zmk_behavior_get_local_id(ref->device->name), ref->metadata.display_name);
+
+    struct behavior_parameter_metadata metadata = {0};
+    behavior_get_parameter_metadata(ref->device, &metadata);
+    for (size_t i = 0; i < metadata.sets_len; i++) {
+        const struct behavior_parameter_metadata_set *set = &metadata.sets[i];
+        print_values(sh, i, 1, set->param1_values, set->param1_values_len);
+        print_values(sh, i, 2, set->param2_values, set->param2_values_len);
+    }
+
+    return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_keymap,
     SHELL_CMD(init, NULL, "Initialize interactive slots subsystem.", cmd_init),
     SHELL_CMD(status, NULL, "Print status of all slots.", cmd_status),
@@ -843,6 +882,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_keymap,
     SHELL_CMD_ARG(get, NULL, "Print bindings: [layer]", cmd_get, 2, 0),
     SHELL_CMD_ARG(set, NULL, "Set a binding: [layer] [position] [behavior] [param1] [param2]",
                   cmd_set, 6, 0),
+    SHELL_CMD_ARG(behavior, NULL, "Print a behavior: [index]", cmd_behavior, 2, 0),
     SHELL_COND_CMD(CONFIG_ZMK_KEYMAP_OUTPUT_ASSIGN, assign, NULL,
                    "Bind an output to a keymap slot.", keymap_assign_cmd),
     SHELL_SUBCMD_SET_END
