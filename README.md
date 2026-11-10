@@ -20,9 +20,11 @@ keymap destroy 1           # clear slot by index
 keymap free                # deinit and free memory
 keymap get 0               # print layer 0: position, behavior ID, param1, param2, behavior
 keymap set 0 3 12 4 0      # bind position 3 of layer 0 to behavior ID 12 with params 4, 0; saved at once
+keymap behavior 0          # print the first behavior: ID and name, then a line per parameter value:
+                           # set, parameter (1/2), type, min or value, max, name
 ```
 
-Full command list: `init`, `status`, `save`, `overwrite`, `activate`, `destroy`, `restore`, `free`, `get`, `set`, `assign`
+Full command list: `init`, `status`, `save`, `overwrite`, `activate`, `destroy`, `restore`, `free`, `get`, `set`, `behavior`, `assign`
 
 ## Output assignment
 
