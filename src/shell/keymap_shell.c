@@ -867,6 +867,16 @@ static int cmd_behavior(const struct shell *sh, const size_t argc, char **argv) 
     return 0;
 }
 
+#if IS_ENABLED(CONFIG_INIT_STACKS) && IS_ENABLED(CONFIG_THREAD_STACK_INFO)
+/* Diagnostic: the least stack the calling shell thread has ever had left, in bytes. */
+static int cmd_stack(const struct shell *sh, const size_t argc, char **argv) {
+    size_t unused = 0;
+    k_thread_stack_space_get(k_current_get(), &unused);
+    shprint(sh, "%u", (unsigned int)unused);
+    return 0;
+}
+#endif
+
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_keymap,
     SHELL_CMD(init, NULL, "Initialize interactive slots subsystem.", cmd_init),
     SHELL_CMD(status, NULL, "Print status of all slots.", cmd_status),
@@ -880,6 +890,9 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_keymap,
     SHELL_CMD_ARG(set, NULL, "Set a binding: [layer] [position] [behavior] [param1] [param2]",
                   cmd_set, 6, 0),
     SHELL_CMD_ARG(behavior, NULL, "Print a behavior: [index]", cmd_behavior, 2, 0),
+#if IS_ENABLED(CONFIG_INIT_STACKS) && IS_ENABLED(CONFIG_THREAD_STACK_INFO)
+    SHELL_CMD(stack, NULL, "Print the unused stack of this shell's thread.", cmd_stack),
+#endif
     SHELL_COND_CMD(CONFIG_ZMK_KEYMAP_OUTPUT_ASSIGN, assign, NULL,
                    "Bind an output to a keymap slot.", keymap_assign_cmd),
     SHELL_SUBCMD_SET_END
