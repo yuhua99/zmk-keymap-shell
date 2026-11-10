@@ -18,9 +18,11 @@ keymap restore             # restore defaults hardcoded to the firmware
 keymap activate gaming     # switch to a stored profile by name or index
 keymap destroy 1           # clear slot by index
 keymap free                # deinit and free memory
+keymap get 0               # print layer 0: position, behavior ID, param1, param2, behavior
+keymap set 0 3 12 4 0      # bind position 3 of layer 0 to behavior ID 12 with params 4, 0; saved at once
 ```
 
-Full command list: `init`, `status`, `save`, `overwrite`, `activate`, `destroy`, `restore`, `free`, `assign`
+Full command list: `init`, `status`, `save`, `overwrite`, `activate`, `destroy`, `restore`, `free`, `get`, `set`, `assign`
 
 ## Output assignment
 
